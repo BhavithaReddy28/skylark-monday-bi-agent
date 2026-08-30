@@ -691,6 +691,74 @@ The source boards contain inconsistent formatting and missing values that leader
     
     // Check for common patterns
     
+    // 0. Specific Open / Total Pipeline Query
+    if (q.includes('open pipeline') || q.includes('active pipeline') || q.includes('total pipeline') || (q.includes('pipeline') && (q.includes('val') || q.includes('total') || q.includes('open')))) {
+      const openDeals = deals.filter(d => d.status.toLowerCase() === 'open');
+      const pipeVal = openDeals.reduce((sum, d) => sum + d.val, 0);
+      const weightedVal = openDeals.reduce((sum, d) => sum + d.val * d.probValue, 0);
+      
+      const bySector = {};
+      openDeals.forEach(d => {
+        const sec = d.sector || 'Others';
+        bySector[sec] = (bySector[sec] || 0) + d.val;
+      });
+
+      return {
+        answer: `### Open Sales Pipeline Analysis
+Here is the detailed breakdown of our current **Active Sales Pipeline**:
+
+* **Total Open Deals:** ${openDeals.length}
+* **Total Active Pipeline Value:** ₹${pipeVal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+* **Weighted Pipeline Value:** ₹${weightedVal.toLocaleString('en-IN', { maximumFractionDigits: 0 })} (adjusted for deal probability)
+* **Average Open Deal Size:** ₹${openDeals.length > 0 ? Math.round(pipeVal / openDeals.length).toLocaleString('en-IN') : 0}
+
+**Active Pipeline Breakdown by Sector:**
+${Object.entries(bySector).map(([sec, val]) => `* **${sec}:** ₹${val.toLocaleString('en-IN', { maximumFractionDigits: 0 })} (${openDeals.filter(d => (d.sector || 'Others') === sec).length} deals)`).join('\n')}`,
+        data: {
+          labels: Object.keys(bySector),
+          datasets: [{
+            label: 'Open Pipeline Value (INR)',
+            data: Object.values(bySector),
+            backgroundColor: ['#22d3ee', '#3b82f6', '#10b981', '#fbbf24', '#a855f7', '#ef4444', '#6b7280']
+          }]
+        },
+        chartType: 'bar'
+      };
+    }
+
+    // 0.5 Closed Won Deals Query
+    if (q.includes('won') || q.includes('closed won') || q.includes('closed deal')) {
+      const wonDeals = deals.filter(d => d.status.toLowerCase() === 'won' || d.stage.toLowerCase().includes('won'));
+      const wonVal = wonDeals.reduce((sum, d) => sum + d.val, 0);
+      
+      const bySector = {};
+      wonDeals.forEach(d => {
+        const sec = d.sector || 'Others';
+        bySector[sec] = (bySector[sec] || 0) + d.val;
+      });
+
+      return {
+        answer: `### Closed Won Deals Summary
+Here is the performance summary of our **Closed Won Deals**:
+
+* **Total Won Deals Count:** ${wonDeals.length}
+* **Total Closed Won Value:** ₹${wonVal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+* **Average Won Deal Value:** ₹${wonDeals.length > 0 ? Math.round(wonVal / wonDeals.length).toLocaleString('en-IN') : 0}
+
+**Closed Won Value by Sector:**
+${Object.entries(bySector).map(([sec, val]) => `* **${sec}:** ₹${val.toLocaleString('en-IN', { maximumFractionDigits: 0 })} (${wonDeals.filter(d => (d.sector || 'Others') === sec).length} deals)`).join('\n')}`,
+        data: {
+          labels: Object.keys(bySector),
+          datasets: [{
+            label: 'Closed Won Value (INR)',
+            data: Object.values(bySector),
+            backgroundColor: ['#10b981', '#3b82f6', '#22d3ee', '#fbbf24', '#a855f7']
+          }]
+        },
+        chartType: 'pie'
+      };
+    }
+
     // 1. Pipeline for energy sector
     if (q.includes('pipeline') && (q.includes('energy') || q.includes('renewable') || q.includes('powerline'))) {
       // Aggregate energy sectors (Renewables + Powerline)

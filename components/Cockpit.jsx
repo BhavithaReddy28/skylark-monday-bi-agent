@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PlaneTakeoff, Key, Brain, Database, LineChart, FileText, Send, Loader2, AlertCircle, CheckCircle2, Menu, X, ChevronRight, Zap, Pencil, Square } from 'lucide-react';
+import { PlaneTakeoff, Key, Brain, Database, LineChart, FileText, Send, Loader2, AlertCircle, CheckCircle2, Menu, X, ChevronRight, Zap, Pencil, Square, Mic, Trash2, Download, RefreshCw } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import html2pdf from 'html2pdf.js';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -33,13 +34,34 @@ export default function Cockpit() {
   const [selectedWoBoard, setSelectedWoBoard] = useState('');
   
   // Chat State
-  const [chatMessages, setChatMessages] = useState([
-    { role: 'agent', text: 'Welcome, Founder. I am synced with your sales pipeline and execution records. How can I assist you with your business analysis today?' }
-  ]);
+  const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const chatEndRef = useRef(null);
   const abortControllerRef = useRef(null);
+  
+  // Ref for PDF target
+  const reportRef = useRef(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('lumina_chat');
+    if (saved) {
+      try {
+        setChatMessages(JSON.parse(saved));
+      } catch (e) {
+        setChatMessages([{ role: 'agent', text: 'Welcome, Founder. I am synced with your sales pipeline and execution records. How can I assist you with your business analysis today?' }]);
+      }
+    } else {
+      setChatMessages([{ role: 'agent', text: 'Welcome, Founder. I am synced with your sales pipeline and execution records. How can I assist you with your business analysis today?' }]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (chatMessages.length > 0 && !isTyping) {
+      localStorage.setItem('lumina_chat', JSON.stringify(chatMessages));
+    }
+  }, [chatMessages, isTyping]);
 
   const stopGeneration = () => {
     if (abortControllerRef.current) {
@@ -47,6 +69,35 @@ export default function Cockpit() {
       abortControllerRef.current = null;
       setIsTyping(false);
     }
+  };
+
+  const clearChat = () => {
+    const defaultMsg = [{ role: 'agent', text: 'Welcome, Founder. I am synced with your sales pipeline and execution records. How can I assist you with your business analysis today?' }];
+    setChatMessages(defaultMsg);
+    localStorage.setItem('lumina_chat', JSON.stringify(defaultMsg));
+  };
+
+  const handleVoiceInput = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      alert('Speech recognition is not supported in this browser.');
+      return;
+    }
+    
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setChatInput(prev => prev + (prev ? ' ' : '') + transcript);
+    };
+    recognition.onerror = (event) => console.error('Speech recognition error', event.error);
+    recognition.onend = () => setIsListening(false);
+    
+    recognition.start();
   };
 
   // Load saved tokens and boards
@@ -511,7 +562,12 @@ export default function Cockpit() {
                             <ResponsiveContainer width="100%" height="100%">
                               {msg.chartType === 'pie' ? (
                                 <PieChart>
-                                  <Pie data={msg.chartData.datasets[0].data.map((val, i) => ({ name: msg.chartData.labels[i], value: val }))} dataKey="value" innerRadius={60} outerRadius={80} stroke="none">
+                                  <Pie 
+                                    data={msg.chartData.datasets[0].data.map((val, i) => ({ name: msg.chartData.labels[i], value: val }))} 
+                                    dataKey="value" innerRadius={60} outerRadius={80} stroke="none"
+                                    onClick={(data) => handleSendMessage(`Tell me more about the ${data.name} status`)}
+                                    className="cursor-pointer hover:opacity-80 transition-opacity"
+                                  >
                                     {msg.chartData.datasets[0].data.map((_, index) => <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
                                   </Pie>
                                   <Tooltip contentStyle={{ backgroundColor: '#14181f', borderColor: '#ffffff1a', borderRadius: '12px' }} />
@@ -521,7 +577,11 @@ export default function Cockpit() {
                                 <BarChart data={msg.chartData.labels.map((lbl, i) => ({ name: lbl, value: msg.chartData.datasets[0].data[i] }))}>
                                   <XAxis dataKey="name" stroke="#6b7280" fontSize={12} tickLine={false} axisLine={false} />
                                   <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} contentStyle={{ backgroundColor: '#14181f', borderColor: '#ffffff1a', borderRadius: '12px' }} />
-                                  <Bar dataKey="value" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                                  <Bar 
+                                    dataKey="value" fill="#8b5cf6" radius={[4, 4, 0, 0]}
+                                    onClick={(data) => handleSendMessage(`Tell me more about the ${data.name} metric`)}
+                                    className="cursor-pointer hover:opacity-80 transition-opacity"
+                                  />
                                 </BarChart>
                               )}
                             </ResponsiveContainer>
@@ -564,32 +624,50 @@ export default function Cockpit() {
                   ))}
                 </div>
 
-                <div className="relative flex items-center">
-                  <input 
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                    placeholder="Ask about revenue, pipeline, operational billing..."
-                    className="w-full bg-surface-glass backdrop-blur-xl border border-white/20 rounded-2xl py-4 pl-6 pr-16 text-sm focus:outline-none focus:border-accent-teal focus:ring-1 focus:ring-accent-teal shadow-2xl placeholder-gray-500"
-                  />
-                  {isTyping ? (
-                    <button 
-                      onClick={stopGeneration}
-                      className="absolute right-2 p-2.5 bg-red-500 hover:bg-red-600 text-white text-base rounded-xl transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)]"
-                      title="Stop Generating"
+                <div className="flex gap-2 items-center">
+                  <button 
+                    onClick={clearChat}
+                    title="Clear Chat History"
+                    className="p-3 bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-2xl transition-all border border-white/10"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                  <div className="relative flex items-center flex-1">
+                    <input 
+                      type="text"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                      placeholder="Ask about revenue, pipeline, operational billing..."
+                      className="w-full bg-surface-glass backdrop-blur-xl border border-white/20 rounded-2xl py-4 pl-12 pr-16 text-sm focus:outline-none focus:border-accent-teal focus:ring-1 focus:ring-accent-teal shadow-2xl placeholder-gray-500"
+                    />
+                    
+                    <button
+                      onClick={handleVoiceInput}
+                      className={`absolute left-3 p-1.5 rounded-lg transition-all ${isListening ? 'text-red-400 bg-red-400/20 animate-pulse' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+                      title="Dictate Message"
                     >
-                      <Square size={18} fill="currentColor" />
+                      <Mic size={18} />
                     </button>
-                  ) : (
-                    <button 
-                      onClick={() => handleSendMessage()}
-                      disabled={!chatInput.trim()}
-                      className="absolute right-2 p-2.5 bg-accent-teal hover:bg-accent-teal/80 text-base rounded-xl transition-all disabled:opacity-50"
-                    >
-                      <Send size={18} className="text-surface" />
-                    </button>
-                  )}
+                    
+                    {isTyping ? (
+                      <button 
+                        onClick={stopGeneration}
+                        className="absolute right-2 p-2.5 bg-red-500 hover:bg-red-600 text-white text-base rounded-xl transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)]"
+                        title="Stop Generating"
+                      >
+                        <Square size={18} fill="currentColor" />
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => handleSendMessage()}
+                        disabled={!chatInput.trim()}
+                        className="absolute right-2 p-2.5 bg-accent-teal hover:bg-accent-teal/80 text-base rounded-xl transition-all disabled:opacity-50"
+                      >
+                        <Send size={18} className="text-surface" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -597,6 +675,19 @@ export default function Cockpit() {
             {activeTab === 'dashboard' && dashboardMetrics && (
               <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
                 
+                <div className="flex items-center justify-between">
+                   <h2 className="text-2xl font-bold text-white">Pipeline Analytics</h2>
+                   <button 
+                     onClick={() => {
+                        setDashboardMetrics(null);
+                        fetchDashboardMetrics();
+                     }}
+                     className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-full text-sm font-medium transition-colors border border-white/10"
+                   >
+                     <RefreshCw size={14} className="text-accent-teal" /> Live Refresh
+                   </button>
+                </div>
+
                 {/* KPI Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   {[
@@ -623,7 +714,11 @@ export default function Cockpit() {
                       <BarChart data={Object.entries(dashboardMetrics.pipeline.byStage).map(([name, obj]) => ({ name, val: obj.val }))}>
                         <XAxis dataKey="name" stroke="#4b5563" fontSize={10} tickFormatter={(val) => val.substring(0,10)} />
                         <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} contentStyle={{ backgroundColor: '#14181f', borderColor: '#ffffff1a', borderRadius: '12px' }} />
-                        <Bar dataKey="val" fill="#22d3ee" radius={[4, 4, 0, 0]} />
+                        <Bar 
+                           dataKey="val" fill="#22d3ee" radius={[4, 4, 0, 0]}
+                           onClick={(data) => { setActiveTab('chat'); handleSendMessage(`Deep dive into pipeline stage: ${data.name}`); }}
+                           className="cursor-pointer hover:opacity-80 transition-opacity"
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -632,7 +727,12 @@ export default function Cockpit() {
                     <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-6">Execution Status</h3>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={Object.entries(dashboardMetrics.workOrders.byStatus).map(([name, value]) => ({ name, value }))} dataKey="value" innerRadius={70} outerRadius={90} stroke="none" paddingAngle={5}>
+                        <Pie 
+                          data={Object.entries(dashboardMetrics.workOrders.byStatus).map(([name, value]) => ({ name, value }))} 
+                          dataKey="value" innerRadius={70} outerRadius={90} stroke="none" paddingAngle={5}
+                          onClick={(data) => { setActiveTab('chat'); handleSendMessage(`Deep dive into execution status: ${data.name}`); }}
+                          className="cursor-pointer hover:opacity-80 transition-opacity"
+                        >
                           {Object.entries(dashboardMetrics.workOrders.byStatus).map((_, index) => <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
                         </Pie>
                         <Tooltip contentStyle={{ backgroundColor: '#14181f', borderColor: '#ffffff1a', borderRadius: '12px' }} />
@@ -668,11 +768,31 @@ export default function Cockpit() {
                       >
                         {isGeneratingReport ? 'Generating...' : 'Generate Update'}
                       </button>
+                      
+                      {reportOutput && (
+                        <button 
+                          onClick={() => {
+                            if (reportRef.current) {
+                              const opt = {
+                                margin: 10,
+                                filename: 'Lumina_Executive_Report.pdf',
+                                image: { type: 'jpeg', quality: 0.98 },
+                                html2canvas: { scale: 2, useCORS: true },
+                                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                              };
+                              html2pdf().set(opt).from(reportRef.current).save();
+                            }
+                          }}
+                          className="px-6 bg-white/5 hover:bg-white/10 text-white font-medium py-3 rounded-xl transition-all border border-white/10 flex items-center gap-2"
+                        >
+                          <Download size={18} /> Export PDF
+                        </button>
+                      )}
                    </div>
                    
                    <div className="bg-surface/50 rounded-xl p-6 border border-white/5 h-64 flex flex-col items-center justify-center text-gray-300 overflow-y-auto">
                      {reportOutput ? (
-                       <div className="prose prose-invert prose-sm max-w-none w-full text-left whitespace-pre-wrap">
+                       <div ref={reportRef} className="prose prose-invert prose-sm max-w-none w-full text-left whitespace-pre-wrap p-4 bg-[#14181f]">
                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{reportOutput}</ReactMarkdown>
                        </div>
                      ) : (

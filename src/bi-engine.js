@@ -524,7 +524,7 @@ class BIEngine {
       total: rawWOs.length
     };
     
-    const cleanD = this.cleanDeals(dealsInput);
+
     const dealNames = new Set(cleanD.map(d => d.name));
     
     rawWOs.forEach(rawW => {

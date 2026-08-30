@@ -570,7 +570,13 @@ export default function Cockpit() {
                       <div className={`max-w-[80%] glass-panel rounded-2xl p-5 ${msg.role === 'user' ? 'bg-white/10' : 'bg-surface/80'}`}>
                         <div className="prose prose-invert prose-sm max-w-none text-gray-300 leading-relaxed whitespace-pre-wrap">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {msg.text ? msg.text.replace(/```chart[\s\S]*?(```|$)/g, '').trim() : ''}
+                            {(() => {
+                              const cleaned = msg.text ? msg.text.replace(/```chart[\s\S]*?(```|$)/g, '').trim() : '';
+                              if (cleaned) return cleaned;
+                              if (msg.text && msg.text.trim()) return msg.text.trim();
+                              if (!msg.isStreaming && !msg.chartData) return "Analysis complete. (See details below or try another query)";
+                              return "";
+                            })()}
                           </ReactMarkdown>
                         </div>
                         

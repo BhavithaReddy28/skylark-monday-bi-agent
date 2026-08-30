@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PlaneTakeoff, Key, Brain, Database, LineChart, FileText, Send, Loader2, AlertCircle, CheckCircle2, Menu, X, ChevronRight, Zap, Pencil, Square, Mic, Trash2, Download, RefreshCw } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import html2pdf from 'html2pdf.js';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -771,8 +770,9 @@ export default function Cockpit() {
                       
                       {reportOutput && (
                         <button 
-                          onClick={() => {
+                          onClick={async () => {
                             if (reportRef.current) {
+                              const html2pdf = (await import('html2pdf.js')).default;
                               const opt = {
                                 margin: 10,
                                 filename: 'Lumina_Executive_Report.pdf',

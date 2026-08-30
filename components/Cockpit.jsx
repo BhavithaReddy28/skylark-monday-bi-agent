@@ -563,7 +563,9 @@ export default function Cockpit() {
                       
                       <div className={`max-w-[80%] glass-panel rounded-2xl p-5 ${msg.role === 'user' ? 'bg-white/10' : 'bg-surface/80'}`}>
                         <div className="prose prose-invert prose-sm max-w-none text-gray-300 leading-relaxed whitespace-pre-wrap">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {msg.text ? msg.text.replace(/```chart[\s\S]*?(```|$)/g, '').trim() : ''}
+                          </ReactMarkdown>
                         </div>
                         
                         {/* Dynamic Chart Rendering inside Chat */}

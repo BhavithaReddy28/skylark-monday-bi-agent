@@ -112,6 +112,12 @@ export default function Cockpit() {
   }, [useLiveMonday, selectedDealsBoard, selectedWoBoard, mondayToken]);
 
   useEffect(() => {
+    if (mondayToken && useLiveMonday && availableBoards.length === 0) {
+      checkConnection();
+    }
+  }, [mondayToken, useLiveMonday]);
+
+  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, isTyping]);
 

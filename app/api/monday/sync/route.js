@@ -8,11 +8,27 @@ export const maxDuration = 60; // Allow Vercel to run up to 60s for sync
 async function findSkylarkBoards(mondayClient) {
   try {
     const data = await mondayClient.query('query { boards (limit: 100) { id name } }');
-    const dealsBoard = data.boards.find(b => b.name.toLowerCase().includes('deal'));
-    const woBoard = data.boards.find(b => b.name.toLowerCase().includes('work') || b.name.toLowerCase().includes('order'));
+    const dealBoards = data.boards.filter(b => b.name.toLowerCase().includes('deal') || b.name.toLowerCase().includes('funnel'));
+    dealBoards.sort((a, b) => {
+      const aIsSkylark = a.name === 'Skylark Deals';
+      const bIsSkylark = b.name === 'Skylark Deals';
+      if (aIsSkylark && !bIsSkylark) return 1;
+      if (!aIsSkylark && bIsSkylark) return -1;
+      return 0;
+    });
+    
+    const woBoards = data.boards.filter(b => b.name.toLowerCase().includes('work') || b.name.toLowerCase().includes('order') || b.name.toLowerCase().includes('tracker'));
+    woBoards.sort((a, b) => {
+      const aIsSkylark = a.name === 'Skylark Work Orders';
+      const bIsSkylark = b.name === 'Skylark Work Orders';
+      if (aIsSkylark && !bIsSkylark) return 1;
+      if (!aIsSkylark && bIsSkylark) return -1;
+      return 0;
+    });
+
     return {
-      dealsBoardId: dealsBoard ? dealsBoard.id : null,
-      woBoardId: woBoard ? woBoard.id : null
+      dealsBoardId: dealBoards[0] ? dealBoards[0].id : null,
+      woBoardId: woBoards[0] ? woBoards[0].id : null
     };
   } catch (err) {
     console.error('Error finding Monday boards:', err.message);

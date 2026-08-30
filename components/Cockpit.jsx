@@ -274,12 +274,23 @@ export default function Cockpit() {
       if (err.name === 'AbortError') {
         setChatMessages(prev => {
           const newMsgs = [...prev];
-          newMsgs[newMsgs.length - 1].isStreaming = false;
-          newMsgs[newMsgs.length - 1].text += '\n\n*(Generation stopped)*';
+          if (newMsgs.length > 0 && newMsgs[newMsgs.length - 1].isStreaming) {
+            newMsgs[newMsgs.length - 1].isStreaming = false;
+            newMsgs[newMsgs.length - 1].text += '\n\n*(Generation stopped)*';
+          }
           return newMsgs;
         });
       } else {
-        setChatMessages(prev => [...prev, { role: 'agent', text: `Error: ${err.message}` }]);
+        setChatMessages(prev => {
+          const newMsgs = [...prev];
+          if (newMsgs.length > 0 && newMsgs[newMsgs.length - 1].isStreaming) {
+            newMsgs[newMsgs.length - 1].isStreaming = false;
+            newMsgs[newMsgs.length - 1].text += `\n\n*(Error: ${err.message})*`;
+          } else {
+            newMsgs.push({ role: 'agent', text: `Error: ${err.message}` });
+          }
+          return newMsgs;
+        });
       }
     } finally {
       setIsTyping(false);

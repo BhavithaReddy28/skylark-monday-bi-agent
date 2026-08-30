@@ -874,50 +874,133 @@ Here is a comprehensive summary of our performance in the **Mining Sector**:
       };
     }
     
-    // 3.5 Largest pipeline / pipeline by sector
-    if (q.includes('largest pipeline') || (q.includes('sector') && q.includes('pipeline'))) {
+    // 3.5 Most deals / sector deals count / total deals
+    if (q.includes('most deals') || q.includes('how many') || q.includes('total deals') || q.includes('deals count') || (q.includes('sector') && (q.includes('deal') || q.includes('most')))) {
       const perf = this.getSectoralPerformance(dealsInput, woInput);
-      const sorted = perf.sort((a, b) => b.pipelineValue - a.pipelineValue);
-      const top = sorted[0];
-      
-      return {
-        answer: `### Pipeline by Sector Analysis
-The sector with the largest active pipeline is **${top.sector}**, with an active pipeline of **₹${top.pipelineValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}**.
+      const sortedByDeals = [...perf].sort((a, b) => b.dealsCount - a.dealsCount);
+      const topDeals = sortedByDeals[0];
+      const openDealsCount = deals.filter(d => d.status.toLowerCase() === 'open').length;
+      const wonDealsCount = deals.filter(d => d.status.toLowerCase() === 'won').length;
 
-Here is the breakdown of the top 5 sectors by pipeline value:
-${sorted.slice(0, 5).map(s => `* **${s.sector}:** ₹${s.pipelineValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })} (${s.dealsCount} deals)`).join('\n')}`,
+      return {
+        answer: `### Deals Volume & Sector Distribution
+The sector with the highest number of deals is **${topDeals.sector}** with **${topDeals.dealsCount} deals**.
+
+* **Total Deals in Tracker:** ${deals.length}
+* **Open Deals:** ${openDealsCount}
+* **Won Deals:** ${wonDealsCount}
+
+**Deals Count by Sector:**
+${sortedByDeals.map(s => `* **${s.sector}:** ${s.dealsCount} deals (${s.wonCount} won)`).join('\n')}`,
         data: {
-          labels: sorted.slice(0, 5).map(s => s.sector),
+          labels: sortedByDeals.map(s => s.sector),
           datasets: [{
-            label: 'Active Pipeline Value',
-            data: sorted.slice(0, 5).map(s => s.pipelineValue),
-            backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899']
+            label: 'Deals Count',
+            data: sortedByDeals.map(s => s.dealsCount),
+            backgroundColor: ['#3b82f6', '#10b981', '#fbbf24', '#8b5cf6', '#ec4899', '#6b7280']
           }]
         },
         chartType: 'bar'
       };
     }
-    // 4. Default overall summary
+
+    // 3.6 Work Orders / Projects / Operational status
+    if (q.includes('work order') || q.includes('project') || q.includes('completed') || q.includes('execution') || q.includes('tracker')) {
+      const revenue = this.getRevenueMetrics(woInput);
+      const completedCount = wos.filter(w => w.status.toLowerCase() === 'completed').length;
+      const ongoingCount = wos.length - completedCount;
+
+      return {
+        answer: `### Work Order Execution & Operational Status
+Based on the Work Order Tracker:
+
+* **Total Work Orders Executed:** ${wos.length}
+* **Completed Work Orders:** ${completedCount}
+* **Ongoing / Active Work Orders:** ${ongoingCount}
+* **Total Executed Contract Value:** ₹${revenue.totalWOAmountExcl.toLocaleString('en-IN', { maximumFractionDigits: 0 })} (excl. GST)
+* **Billed Contract Value:** ₹${revenue.totalBilledValueExcl.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+* **Outstanding Receivables (AR):** ₹${revenue.totalReceivables.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`,
+        data: {
+          labels: ['Completed WOs', 'Ongoing WOs'],
+          datasets: [{
+            label: 'Work Orders Count',
+            data: [completedCount, ongoingCount],
+            backgroundColor: ['#10b981', '#3b82f6']
+          }]
+        },
+        chartType: 'pie'
+      };
+    }
+
+    // 3.7 Sectoral Performance Overview
+    if (q.includes('sector')) {
+      const perf = this.getSectoralPerformance(dealsInput, woInput);
+      const sorted = [...perf].sort((a, b) => b.pipelineValue - a.pipelineValue);
+      
+      return {
+        answer: `### Sectoral Performance Overview
+Here is the sector-by-sector breakdown across our sales pipeline and execution tracker:
+
+${sorted.map(s => `* **${s.sector}:** ${s.dealsCount} deals | Active Pipeline: ₹${s.pipelineValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })} | Closed Won: ₹${s.wonValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })} | Outstanding AR: ₹${s.receivables.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`).join('\n')}`,
+        data: {
+          labels: sorted.map(s => s.sector),
+          datasets: [{
+            label: 'Active Pipeline (INR)',
+            data: sorted.map(s => s.pipelineValue),
+            backgroundColor: ['#22d3ee', '#3b82f6', '#10b981', '#fbbf24', '#a855f7', '#ef4444', '#6b7280']
+          }]
+        },
+        chartType: 'bar'
+      };
+    }
+
+    // 3.8 Specific Sector Names
+    const specificSec = ['renewables', 'powerline', 'railways', 'construction'].find(s => q.includes(s));
+    if (specificSec) {
+      const capitalized = specificSec.charAt(0).toUpperCase() + specificSec.slice(1);
+      const perf = this.getSectoralPerformance(dealsInput, woInput).find(s => s.sector.toLowerCase() === specificSec);
+      if (perf) {
+        return {
+          answer: `### ${capitalized} Sector Overview
+Here is the metrics summary for **${capitalized}**:
+
+* **Total Pipeline Deals:** ${perf.dealsCount} (Won: ${perf.wonCount})
+* **Closed Won Value:** ₹${perf.wonValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+* **Active Pipeline:** ₹${perf.pipelineValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+* **Work Orders Executed:** ${perf.workOrdersCount} (Completed: ${perf.completedWOs})
+* **Outstanding Receivables:** ₹${perf.receivables.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`,
+          data: {
+            labels: ['Closed Won', 'Active Pipeline', 'Outstanding AR'],
+            datasets: [{
+              label: 'Value (INR)',
+              data: [perf.wonValue, perf.pipelineValue, perf.receivables],
+              backgroundColor: ['#10b981', '#fbbf24', '#ef4444']
+            }]
+          },
+          chartType: 'bar'
+        };
+      }
+    }
+
+    // 4. Default overall summary with custom question header
     const totalDeals = deals.length;
     const wonVal = deals.filter(d => d.status.toLowerCase() === 'won').reduce((sum, d) => sum + d.val, 0);
     const pipeVal = deals.filter(d => d.status.toLowerCase() === 'open').reduce((sum, d) => sum + d.val, 0);
     const arTotal = wos.reduce((sum, w) => sum + w.receivables, 0);
-    
+    const topSectors = this.getSectoralPerformance(dealsInput, woInput).sort((a,b) => b.pipelineValue - a.pipelineValue);
+
     return {
-      answer: `### Business Intelligence Overview
-Welcome to the Skylark Drones BI Agent. Here is a quick snapshot of the business:
+      answer: `### Analysis for: "${queryStr}"
+Here is the business intelligence breakdown matching your query:
 
-* **Total Deals in Pipeline:** ${totalDeals}
-* **Total Closed Won Deal Value:** ₹${wonVal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+* **Total Deals in Tracker:** ${totalDeals} (${deals.filter(d => d.status.toLowerCase() === 'open').length} open, ${deals.filter(d => d.status.toLowerCase() === 'won').length} won)
 * **Total Active Pipeline Value:** ₹${pipeVal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-* **Total Outstanding Accounts Receivable (AR):** ₹${arTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-* **Active Work Orders:** ${wos.length} (${wos.filter(w => w.status.toLowerCase() === 'completed').length} completed)
+* **Total Closed Won Value:** ₹${wonVal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+* **Total Outstanding Accounts Receivable:** ₹${arTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+* **Work Orders Count:** ${wos.length} (${wos.filter(w => w.status.toLowerCase() === 'completed').length} completed)
 
-Try asking specific questions like:
-1. *"How's our pipeline looking for energy sector this quarter?"*
-2. *"What is our outstanding accounts receivable?"*
-3. *"Give me an overview of the Mining sector performance."*
-4. *"Create a leadership update report."*`,
+**Top Sectors Overview:**
+${topSectors.slice(0, 4).map(s => `* **${s.sector}:** ${s.dealsCount} deals | Pipeline: ₹${s.pipelineValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`).join('\n')}`,
       data: {
         labels: ['Closed Won', 'Open Pipeline', 'Outstanding AR'],
         datasets: [{

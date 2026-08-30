@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PlaneTakeoff, Key, Brain, Database, LineChart, FileText, Send, Loader2, AlertCircle, CheckCircle2, Menu, X, ChevronRight, Zap } from 'lucide-react';
+import { PlaneTakeoff, Key, Brain, Database, LineChart, FileText, Send, Loader2, AlertCircle, CheckCircle2, Menu, X, ChevronRight, Zap, Pencil, Square } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -39,6 +39,15 @@ export default function Cockpit() {
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef(null);
+  const abortControllerRef = useRef(null);
+
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsTyping(false);
+    }
+  };
 
   // Load saved tokens and boards
   useEffect(() => {
@@ -143,6 +152,8 @@ export default function Cockpit() {
     if (!customQuery) setChatInput('');
     setChatMessages(prev => [...prev, { role: 'user', text: query }]);
     setIsTyping(true);
+    
+    abortControllerRef.current = new AbortController();
 
     try {
       const res = await fetch('/api/chat', {
@@ -154,16 +165,75 @@ export default function Cockpit() {
           useLiveMonday,
           dealsBoardId: selectedDealsBoard,
           woBoardId: selectedWoBoard
-        })
+        }),
+        signal: abortControllerRef.current.signal
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
       
-      setChatMessages(prev => [...prev, { role: 'agent', text: data.answer, chartData: data.data, chartType: data.chartType }]);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${res.status}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let streamedText = '';
+      
+      setChatMessages(prev => [...prev, { role: 'agent', text: '', isStreaming: true }]);
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) {
+          const chunkStr = decoder.decode(value, { stream: true });
+          const lines = chunkStr.split('\n');
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const data = JSON.parse(line);
+              if (data.type === 'text') {
+                streamedText += data.content;
+                setChatMessages(prev => {
+                  const newMsgs = [...prev];
+                  newMsgs[newMsgs.length - 1].text = streamedText;
+                  return newMsgs;
+                });
+              } else if (data.type === 'chart') {
+                setChatMessages(prev => {
+                  const newMsgs = [...prev];
+                  newMsgs[newMsgs.length - 1].chartData = data.data;
+                  newMsgs[newMsgs.length - 1].chartType = data.chartType;
+                  return newMsgs;
+                });
+              } else if (data.type === 'done') {
+                setChatMessages(prev => {
+                  const newMsgs = [...prev];
+                  newMsgs[newMsgs.length - 1].isStreaming = false;
+                  return newMsgs;
+                });
+              } else if (data.type === 'error') {
+                throw new Error(data.error);
+              }
+            } catch (e) {
+              console.error("Parse error on chunk line:", line, e);
+            }
+          }
+        }
+      }
     } catch (err) {
-      setChatMessages(prev => [...prev, { role: 'agent', text: `Error: ${err.message}` }]);
+      if (err.name === 'AbortError') {
+        setChatMessages(prev => {
+          const newMsgs = [...prev];
+          newMsgs[newMsgs.length - 1].isStreaming = false;
+          newMsgs[newMsgs.length - 1].text += '\n\n*(Generation stopped)*';
+          return newMsgs;
+        });
+      } else {
+        setChatMessages(prev => [...prev, { role: 'agent', text: `Error: ${err.message}` }]);
+      }
     } finally {
       setIsTyping(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -227,8 +297,8 @@ export default function Cockpit() {
               <PlaneTakeoff className="text-white" size={20} />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-gradient">SKYLARK</h1>
-              <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">BI Cockpit</p>
+              <h1 className="text-xl font-bold tracking-tight text-gradient">LUMINA</h1>
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">Analytics</p>
             </div>
           </div>
 
@@ -412,8 +482,22 @@ export default function Cockpit() {
                       transition={{ delay: i * 0.1 }}
                       className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
                     >
-                      <div className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center shadow-lg ${msg.role === 'agent' ? 'bg-gradient-to-br from-accent-violet to-accent-teal border border-accent-teal/30' : 'bg-white/10 border border-white/20'}`}>
-                        {msg.role === 'agent' ? <Brain size={20} className="text-white" /> : <div className="text-sm font-bold">U</div>}
+                      <div className="flex flex-col items-center gap-2">
+                        <div className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center shadow-lg ${msg.role === 'agent' ? 'bg-gradient-to-br from-accent-violet to-accent-teal border border-accent-teal/30' : 'bg-white/10 border border-white/20'}`}>
+                          {msg.role === 'agent' ? <Brain size={20} className="text-white" /> : <div className="text-sm font-bold">U</div>}
+                        </div>
+                        {msg.role === 'user' && !isTyping && (
+                          <button 
+                            onClick={() => {
+                              setChatInput(msg.text);
+                              setChatMessages(prev => prev.slice(0, i));
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                            title="Edit and Re-ask"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
                       </div>
                       
                       <div className={`max-w-[80%] glass-panel rounded-2xl p-5 ${msg.role === 'user' ? 'bg-white/10' : 'bg-surface/80'}`}>
@@ -447,7 +531,7 @@ export default function Cockpit() {
                     </motion.div>
                   ))}
                   
-                  {isTyping && (
+                  {isTyping && chatMessages[chatMessages.length - 1]?.role === 'user' && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-4">
                        <div className="w-10 h-10 rounded-xl shrink-0 bg-gradient-to-br from-accent-violet to-accent-teal flex items-center justify-center opacity-70">
                          <Loader2 className="animate-spin text-white" size={20} />
@@ -489,13 +573,23 @@ export default function Cockpit() {
                     placeholder="Ask about revenue, pipeline, operational billing..."
                     className="w-full bg-surface-glass backdrop-blur-xl border border-white/20 rounded-2xl py-4 pl-6 pr-16 text-sm focus:outline-none focus:border-accent-teal focus:ring-1 focus:ring-accent-teal shadow-2xl placeholder-gray-500"
                   />
-                  <button 
-                    onClick={() => handleSendMessage()}
-                    disabled={isTyping || !chatInput.trim()}
-                    className="absolute right-2 p-2.5 bg-accent-teal hover:bg-accent-teal/80 text-base rounded-xl transition-all disabled:opacity-50"
-                  >
-                    <Send size={18} className="text-surface" />
-                  </button>
+                  {isTyping ? (
+                    <button 
+                      onClick={stopGeneration}
+                      className="absolute right-2 p-2.5 bg-red-500 hover:bg-red-600 text-white text-base rounded-xl transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)]"
+                      title="Stop Generating"
+                    >
+                      <Square size={18} fill="currentColor" />
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => handleSendMessage()}
+                      disabled={!chatInput.trim()}
+                      className="absolute right-2 p-2.5 bg-accent-teal hover:bg-accent-teal/80 text-base rounded-xl transition-all disabled:opacity-50"
+                    >
+                      <Send size={18} className="text-surface" />
+                    </button>
+                  )}
                 </div>
               </motion.div>
             )}

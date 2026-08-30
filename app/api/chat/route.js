@@ -128,42 +128,71 @@ Guidelines:
 \`\`\`
 Choose colors from: '#22d3ee', '#3b82f6', '#10b981', '#fbbf24', '#ef4444', '#a855f7', '#6b7280'.
 `;
-        const result = await model.generateContent(prompt);
-        let textResponse = result.response.text();
-        
-        let chartData = null;
-        let chartType = null;
-        const chartMatch = textResponse.match(/```chart\s*([\s\S]*?)\s*```/);
-        
-        if (chartMatch) {
-          try {
-            const chartObj = JSON.parse(chartMatch[1]);
-            chartData = chartObj.data;
-            chartType = chartObj.type;
-            textResponse = textResponse.replace(/```chart\s*[\s\S]*?\s*```/, '').trim();
-          } catch (e) {
-            console.error('Failed to parse chart JSON:', e);
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          async start(controller) {
+            try {
+              const result = await model.generateContentStream(prompt);
+              let fullText = "";
+              for await (const chunk of result.stream) {
+                const chunkText = chunk.text();
+                fullText += chunkText;
+                controller.enqueue(encoder.encode(JSON.stringify({ type: 'text', content: chunkText }) + '\n'));
+              }
+              
+              let chartData = null;
+              let chartType = null;
+              const chartMatch = fullText.match(/```chart\s*([\s\S]*?)\s*```/);
+              
+              if (chartMatch) {
+                try {
+                  const chartObj = JSON.parse(chartMatch[1]);
+                  chartData = chartObj.data;
+                  chartType = chartObj.type;
+                  controller.enqueue(encoder.encode(JSON.stringify({ type: 'chart', data: chartData, chartType: chartType }) + '\n'));
+                } catch (e) {
+                  console.error('Failed to parse chart JSON:', e);
+                }
+              }
+              controller.enqueue(encoder.encode(JSON.stringify({ type: 'done', dataSource: useLiveMonday ? 'Monday.com API' : 'Local Excel Cache' }) + '\n'));
+              controller.close();
+            } catch (err) {
+              console.error('Stream error:', err);
+              controller.enqueue(encoder.encode(JSON.stringify({ type: 'error', error: err.message }) + '\n'));
+              controller.close();
+            }
           }
-        }
-
-        return NextResponse.json({
-          success: true,
-          answer: textResponse,
-          data: chartData,
-          chartType: chartType,
-          dataSource: useLiveMonday ? 'Monday.com API' : 'Local Excel Cache'
         });
+        
+        return new NextResponse(stream, { headers: { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-cache' } });
+        
       } catch (geminiError) {
-        console.error('Gemini error:', geminiError);
+        console.error('Gemini init error:', geminiError);
         return NextResponse.json({ error: 'Gemini Error: ' + geminiError.message, stack: geminiError.stack }, { status: 500 });
       }
     } else {
       // Rule-based processing when no AI key is provided
       const fallbackAns = biEngine.answerNaturalQuery(message, cleanDeals, cleanWOs);
+      let ansText = fallbackAns;
+      let cData = null;
+      let cType = null;
       if (typeof fallbackAns === 'object' && fallbackAns.answer) {
-          return NextResponse.json(fallbackAns);
+         ansText = fallbackAns.answer;
+         cData = fallbackAns.data;
+         cType = fallbackAns.chartType;
       }
-      return NextResponse.json({ answer: fallbackAns });
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(JSON.stringify({ type: 'text', content: ansText }) + '\n'));
+          if (cData) {
+            controller.enqueue(encoder.encode(JSON.stringify({ type: 'chart', data: cData, chartType: cType }) + '\n'));
+          }
+          controller.enqueue(encoder.encode(JSON.stringify({ type: 'done', dataSource: useLiveMonday ? 'Monday.com API' : 'Local Excel Cache' }) + '\n'));
+          controller.close();
+        }
+      });
+      return new NextResponse(stream, { headers: { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-cache' } });
     }
   } catch (err) {
     console.error('Chat error:', err);

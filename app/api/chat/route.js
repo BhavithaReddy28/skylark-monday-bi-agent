@@ -7,8 +7,8 @@ import MondayClient from '../../../src/monday-client.js';
 async function findSkylarkBoards(mondayClient) {
   try {
     const data = await mondayClient.query('query { boards (limit: 100) { id name } }');
-    const dealsBoard = data.boards.find(b => b.name === 'Skylark Deals');
-    const woBoard = data.boards.find(b => b.name === 'Skylark Work Orders');
+    const dealsBoard = data.boards.find(b => b.name.toLowerCase().includes('deal'));
+    const woBoard = data.boards.find(b => b.name.toLowerCase().includes('work') || b.name.toLowerCase().includes('order'));
     return {
       dealsBoardId: dealsBoard ? dealsBoard.id : null,
       woBoardId: woBoard ? woBoard.id : null

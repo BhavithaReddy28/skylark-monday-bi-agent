@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+  --color-base: #0b0e14;
+  --color-surface: #14181f;
+  --color-surface-glass: rgba(20, 24, 31, 0.4);
+  --color-accent-violet: #8b5cf6;
+  --color-accent-teal: #22d3ee;
+  --color-accent-amber: #f59e0b;
+}
+
+@layer base {
+  body {
+    @apply bg-base text-gray-200 antialiased overflow-hidden selection:bg-accent-violet selection:text-white;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+/* Custom Utilities for the Premium UI */
+@layer utilities {
+  .glass-panel {
+    @apply bg-surface-glass backdrop-blur-xl border border-white/10 shadow-2xl;
+  }
+  
+  .glass-panel-hover {
+    @apply transition-all duration-300 hover:bg-white/5 hover:border-white/20 hover:shadow-[0_0_20px_rgba(34,211,238,0.15)];
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-accent-violet to-accent-teal;
+  }
+
+  /* Animated Breathing Mesh Background Elements */
+  .aurora-blob {
+    @apply absolute rounded-full mix-blend-screen filter blur-[100px] opacity-40 animate-pulse;
+    animation-duration: 15s;
+  }
+  
+  .aurora-violet {
+    @apply bg-accent-violet w-[500px] h-[500px] -top-[100px] -left-[100px];
+  }
+  
+  .aurora-teal {
+    @apply bg-accent-teal w-[600px] h-[600px] bottom-[100px] -right-[100px];
+    animation-delay: 5s;
+  }
+  
+  .aurora-amber {
+    @apply bg-accent-amber w-[400px] h-[400px] top-[40%] left-[30%];
+    animation-delay: 10s;
+  }
+
+  /* Scrollbar hiding for clean UI */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

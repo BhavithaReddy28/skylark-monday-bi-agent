@@ -502,21 +502,18 @@ class BIEngine {
       total: rawDeals.length
     };
     
-    rawDeals.forEach(d => {
-      const name = d['Deal Name'];
+    rawDeals.forEach(rawD => {
+      const name = rawD['Deal Name'];
       if (name === 'Deal Name' || name === 'Deal name masked') {
         dealErrors.duplicateHeaderRows += 1;
-        return;
       }
-      if (!d['Masked Deal value'] && d['Masked Deal value'] !== 0) {
-        dealErrors.missingValue += 1;
-      }
-      if (!d['Tentative Close Date'] && !d['Close Date (A)']) {
-        dealErrors.missingDate += 1;
-      }
-      if (!d['Sector/service'] || d['Sector/service'] === 'Sector/service') {
-        dealErrors.invalidSector += 1;
-      }
+    });
+
+    const cleanD = this.cleanDeals(dealsInput);
+    cleanD.forEach(d => {
+      if (!d.val && d.val !== 0) dealErrors.missingValue += 1;
+      if (!d.closeDate && !d.tentCloseDate) dealErrors.missingDate += 1;
+      if (d.sector === 'Others') dealErrors.invalidSector += 1;
     });
     
     const woErrors = {
@@ -530,21 +527,18 @@ class BIEngine {
     const cleanD = this.cleanDeals(dealsInput);
     const dealNames = new Set(cleanD.map(d => d.name));
     
-    rawWOs.forEach(w => {
-      const name = w['Deal name masked'];
+    rawWOs.forEach(rawW => {
+      const name = rawW['Deal name masked'];
       if (name === 'Deal name masked' || name === 'Deal Name') {
         woErrors.duplicateHeaderRows += 1;
-        return;
       }
-      if (!w['Amount in Rupees (Excl of GST) (Masked)']) {
-        woErrors.missingAmount += 1;
-      }
-      if (!w['Date of PO/LOI'] && !w['Data Delivery Date']) {
-        woErrors.missingDates += 1;
-      }
-      if (name && !dealNames.has(name)) {
-        woErrors.unlinkedDeals += 1;
-      }
+    });
+
+    const cleanW = this.cleanWorkOrders(woInput);
+    cleanW.forEach(w => {
+      if (!w.amtExcl && w.amtExcl !== 0) woErrors.missingAmount += 1;
+      if (!w.deliveryDate && !w.poDate) woErrors.missingDates += 1;
+      if (w.name && !dealNames.has(w.name)) woErrors.unlinkedDeals += 1;
     });
     
     return {

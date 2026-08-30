@@ -181,14 +181,14 @@ class BIEngine {
     for (const kw of keywords) {
       const lowerKw = kw.toLowerCase().replace(/[^a-z0-9]/g, '');
       const exactMatch = keys.find(k => k.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerKw && !isIgnored(k));
-      if (exactMatch && item[exactMatch] !== undefined && item[exactMatch] !== null) return item[exactMatch];
+      if (exactMatch && item[exactMatch] !== undefined && item[exactMatch] !== null && item[exactMatch] !== '') return item[exactMatch];
     }
     
     // Second pass: includes match
     for (const kw of keywords) {
       const lowerKw = kw.toLowerCase().replace(/[^a-z0-9]/g, '');
       const match = keys.find(k => k.toLowerCase().replace(/[^a-z0-9]/g, '').includes(lowerKw) && !isIgnored(k));
-      if (match && item[match] !== undefined && item[match] !== null) return item[match];
+      if (match && item[match] !== undefined && item[match] !== null && item[match] !== '') return item[match];
     }
     
     return null;

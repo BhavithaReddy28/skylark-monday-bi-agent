@@ -49,6 +49,7 @@ export async function POST(request) {
     if (useLiveMonday && deals && workOrders) {
 
       console.log('DEBUG WORKORDER[0]:', JSON.stringify(workOrders[0]));
+      console.log('DEBUG DEAL[0]:', JSON.stringify(deals[0]));
       biEngine.localDeals = biEngine.cleanDeals(deals);
       biEngine.localWOs = biEngine.cleanWorkOrders(workOrders);
     }

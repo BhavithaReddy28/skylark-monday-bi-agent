@@ -109,7 +109,7 @@ export default function Cockpit() {
 
   useEffect(() => {
     fetchDashboardMetrics();
-  }, [useLiveMonday, selectedDealsBoard, selectedWoBoard]);
+  }, [useLiveMonday, selectedDealsBoard, selectedWoBoard, mondayToken]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
